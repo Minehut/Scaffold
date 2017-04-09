@@ -262,6 +262,12 @@ public class ScaffoldCommands {
             return;
         }
 
+        if (wrapper.getFolder().exists()) try {
+            FileUtils.forceDelete(wrapper.getFolder());
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+
         Bukkit.broadcastMessage(ChatColor.YELLOW + "World import by " + sender.getName() + " beginning...");
 
         Scaffold.instance().async(() -> {
@@ -273,7 +279,12 @@ public class ScaffoldCommands {
                 FileUtils.forceDelete(temp);
                 File levelDatParent = findLevelDat(wrapper.getFolder());
                 File[] listFiles = levelDatParent.listFiles();
-                if (!levelDatParent.equals(wrapper.getFolder()) && listFiles != null) for (File file : listFiles) Files.copy(file.toPath(), wrapper.getFolder().toPath());
+                if (!levelDatParent.getPath().equals(wrapper.getFolder().getPath()) && listFiles != null)
+                    for (File file : listFiles) {
+                        System.out.println(file.getName());
+                        File to = new File(wrapper.getFolder(), file.getName());
+                        Files.copy(file.toPath(), to.toPath());
+                    }
                 if (!wrapper.isCreated()) {
                     sender.sendMessage(ChatColor.RED + "Invalid zipped world, no level.dat found.");
                     FileUtils.deleteDirectory(wrapper.getFolder());
@@ -292,12 +303,13 @@ public class ScaffoldCommands {
     }
 
     private static File findLevelDat(File file) {
+        System.out.println("Searching " + file.getName());
         if (new File(file, "level.dat").exists()) return file;
         File[] listFiles = file.listFiles();
         if (listFiles != null) {
             for (File  f : listFiles) {
-                File next = findLevelDat(file);
-                if (next != null) return next;
+                File next = findLevelDat(f);
+                if (next != null && next.exists()) return next;
             }
         }
         return null;
