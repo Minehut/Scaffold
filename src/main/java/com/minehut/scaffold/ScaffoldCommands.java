@@ -17,6 +17,8 @@ import org.bukkit.entity.Player;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.*;
 import static java.nio.file.StandardWatchEventKinds.*;
 import java.util.*;
@@ -271,9 +273,8 @@ public class ScaffoldCommands {
 
         Scaffold.instance().async(() -> {
             try {
-                HttpResponse<InputStream> response = Unirest.get(link).header("content-type", "*/*").asBinary();
                 File temp = new File(UUID.randomUUID().toString() + ".zip");
-                Files.copy(response.getBody(), temp.toPath());
+                Files.copy(new URL(cmd.getString(0)).openConnection().getInputStream(), temp.toPath());
                 Zip.extract(temp, wrapper.getFolder());
                 FileUtils.forceDelete(temp);
                 File levelDatParent = findLevelDat(wrapper.getFolder());
