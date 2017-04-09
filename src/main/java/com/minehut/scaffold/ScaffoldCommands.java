@@ -7,6 +7,7 @@ import com.mashape.unirest.http.Unirest;
 import com.sk89q.minecraft.util.commands.Command;
 import com.sk89q.minecraft.util.commands.CommandContext;
 import com.sk89q.minecraft.util.commands.CommandNumberFormatException;
+import com.sk89q.minecraft.util.commands.CommandPermissions;
 import org.apache.commons.io.FileUtils;
 import org.bukkit.*;
 import org.bukkit.World.Environment;
@@ -24,8 +25,13 @@ import java.util.*;
 public class ScaffoldCommands {
     private static final Random random = new Random();
 
+    @CommandPermissions("scaffold.command.lock")
     @Command(aliases = "lock", desc = "Lock a world at this time.", min = 1, max = 1, usage = "<world>")
     public static void lock(CommandContext cmd, CommandSender sender) {
+        if (!sender.hasPermission("scaffold.command.lock")) {
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
+            return;
+        }
         String current = "---";
         if (sender instanceof Player)
             current = ((Player) sender).getWorld().getName();
@@ -50,8 +56,13 @@ public class ScaffoldCommands {
             sender.sendMessage(ChatColor.GOLD + "Unlocked " + wrapper.getName() + ".");
     }
 
+    @CommandPermissions("scaffold.command.archive")
     @Command(aliases = "archive", desc = "Archive and delete a world (use -k to keep).", min = 1, max = 1, usage = "<world>", flags = "k")
     public static void archive(CommandContext cmd, CommandSender sender) {
+        if (!sender.hasPermission("scaffold.command.archive")) {
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
+            return;
+        }
         ScaffoldWorld wrapper = ScaffoldWorld.ofSearch(cmd.getString(0));
 
         if (!wrapper.isCreated()) {
@@ -92,8 +103,13 @@ public class ScaffoldCommands {
         }
     }
 
+    @CommandPermissions("scaffold.command.create")
     @Command(aliases = "create", desc = "Create a new world.", min = 1, max = 1, usage = "<world>", flags = "te")
     public static void create(CommandContext cmd, CommandSender sender) throws CommandNumberFormatException {
+        if (!sender.hasPermission("scaffold.command.create")) {
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
+            return;
+        }
         ScaffoldWorld wrapper = ScaffoldWorld.ofSearch(cmd.getString(0));
 
         if (wrapper.isCreated()) {
@@ -114,8 +130,13 @@ public class ScaffoldCommands {
         sender.sendMessage(ChatColor.GOLD + "Created world \"" + wrapper.getName() + "\".");
     }
 
+    @CommandPermissions("scaffold.command.open")
     @Command(aliases = "open", desc = "Open a world.", min = 1, max = 1, usage = "<world>")
     public static void open(CommandContext cmd, CommandSender sender) {
+        if (!sender.hasPermission("scaffold.command.open")) {
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
+            return;
+        }
         ScaffoldWorld wrapper = ScaffoldWorld.ofSearch(cmd.getString(0));
 
         if (!wrapper.isCreated()) {
@@ -139,9 +160,15 @@ public class ScaffoldCommands {
         }
     }
 
+    @CommandPermissions("scaffold.command.close")
     @Command(aliases = "close", desc = "Close a world.", min = 1, max = 1, usage = "<world>")
     public static void close(CommandContext cmd, CommandSender sender) {
         ScaffoldWorld wrapper = ScaffoldWorld.ofSearch(cmd.getString(0));
+
+        if (!sender.hasPermission("scaffold.command.close")) {
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
+            return;
+        }
 
         if (!wrapper.isCreated()) {
             sender.sendMessage(ChatColor.RED + "World has not been created.");
@@ -171,8 +198,14 @@ public class ScaffoldCommands {
             sender.sendMessage(ChatColor.GOLD + "Failed to unload world \"" + wrapper.getName() + "\".");
     }
 
+    @CommandPermissions("scaffold.command.export")
     @Command(aliases = "export", desc = "Export a world.", max = 1, usage = "<world>")
     public static void upload(CommandContext cmd, CommandSender sender) {
+        if (!sender.hasPermission("scaffold.command.upload")) {
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
+            return;
+        }
+
         String current = "---";
         if (sender instanceof Player)
             current = ((Player) sender).getWorld().getName();
@@ -198,23 +231,29 @@ public class ScaffoldCommands {
                 return;
             }
 
-            sender.sendMessage(ChatColor.YELLOW + "Uploading world...");
-            try {
-                HttpResponse<JsonNode> json = Unirest.post("https://file.io").field("file", zip).asJson();
-                JSONObject object = json.getBody().getObject();
-                zip.delete();
-                sender.sendMessage(ChatColor.GOLD + "Upload complete: " + object.getString("link"));
-            } catch (Exception e) {
-                e.printStackTrace();
-                sender.sendMessage(ChatColor.RED + "Failed to upload, see the server logs.");
-                return;
-            }
+                sender.sendMessage(ChatColor.YELLOW + "Uploading world...");
+                try {
+                    HttpResponse<String> response = Unirest.post("https://transfer.sh/").header("Max-Downloads", "1").header("Max-Days", "3").field("upload-file", zip).asString();
+                    String link = response.getBody();
+                    zip.delete();
+                    sender.sendMessage(ChatColor.GOLD + "Upload complete: " + link);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    sender.sendMessage(ChatColor.RED + "Failed to upload, see the server logs.");
+                    return;
+                }
 
         });
     }
 
+    @CommandPermissions("scaffold.command.import")
     @Command(aliases = "import", desc = "Import a world.", min = 2, max = 2, usage = "<.zip file link> <world name>")
     public static void download(CommandContext cmd, CommandSender sender) {
+        if (!sender.hasPermission("scaffold.command.import")) {
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
+            return;
+        }
+
         String link = cmd.getString(0);
         ScaffoldWorld wrapper = ScaffoldWorld.ofSearch(cmd.getString(1));
 
@@ -264,8 +303,13 @@ public class ScaffoldCommands {
         return null;
     }
 
+    @CommandPermissions("scaffold.command.worlds")
     @Command(aliases = "worlds", desc = "Show all worlds.", max = 1, flags = "l", help = "(search)")
     public static void worlds(CommandContext cmd, CommandSender sender) {
+        if (!sender.hasPermission("scaffold.command.worlds")) {
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
+            return;
+        }
         List<ScaffoldWorld> all = new ArrayList<>();
 
         File scaffold = new File("scaffold");
