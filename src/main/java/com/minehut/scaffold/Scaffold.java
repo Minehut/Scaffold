@@ -12,6 +12,7 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.util.*;
 
 public class Scaffold extends JavaPlugin implements TabCompleter {
@@ -39,13 +40,21 @@ public class Scaffold extends JavaPlugin implements TabCompleter {
         CommandsManagerRegistration cmds = new CommandsManagerRegistration(this, this.commands);
         cmds.register(ScaffoldCommands.class);
 
-        getServer().getScheduler().scheduleSyncRepeatingTask(this, new Runnable() {
-            @Override
-            public void run() {
-                for (ScaffoldWorld wrapper : locked.keySet()) {
-                    if (wrapper.isOpen())
-                        wrapper.getWorld().get().setFullTime(locked.get(wrapper));
+        File scaffold = new File("scaffold");
+        if (scaffold.exists()) {
+            File[] contents = scaffold.listFiles();
+            if (contents != null) {
+                for (File folder : contents) {
+                    ScaffoldWorld world = new ScaffoldWorld(folder.getName());
+                    if (world.isCreated()) world.load();
                 }
+            }
+        }
+
+        getServer().getScheduler().scheduleSyncRepeatingTask(this, () -> {
+            for (ScaffoldWorld wrapper : locked.keySet()) {
+                if (wrapper.isOpen())
+                    wrapper.getWorld().get().setFullTime(locked.get(wrapper));
             }
         }, 0, 20);
     }

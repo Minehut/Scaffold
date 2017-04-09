@@ -13,8 +13,6 @@ import org.bukkit.World.Environment;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -130,8 +128,6 @@ public class ScaffoldCommands {
             sender.sendMessage(ChatColor.GOLD + "Opened world \"" + wrapper.getName() + "\".");
         }
 
-        sender.sendMessage(ChatColor.GOLD + "Teleported to world \"" + wrapper.getName() + "\".");
-
         if (sender instanceof Player) {
             Player player = (Player) sender;
             player.teleport(wrapper.getWorld().get().getSpawnLocation());
@@ -139,8 +135,7 @@ public class ScaffoldCommands {
             player.setGameMode(GameMode.CREATIVE);
             player.setAllowFlight(true);
             player.setFlying(true);
-            player.setAllowFlight(true);
-            player.setFlying(true);
+            sender.sendMessage(ChatColor.GOLD + "Teleported to world \"" + wrapper.getName() + "\".");
         }
     }
 
@@ -176,7 +171,7 @@ public class ScaffoldCommands {
             sender.sendMessage(ChatColor.GOLD + "Failed to unload world \"" + wrapper.getName() + "\".");
     }
 
-    @Command(aliases = "export", desc = "Export a world.", min = 0, max = 1, usage = "<world>")
+    @Command(aliases = "export", desc = "Export a world.", max = 1, usage = "<world>")
     public static void upload(CommandContext cmd, CommandSender sender) {
         String current = "---";
         if (sender instanceof Player)
@@ -190,34 +185,31 @@ public class ScaffoldCommands {
             return;
         }
 
-        Scaffold.instance().async(new Runnable() {
-            @Override
-            public void run() {
-                sender.sendMessage(ChatColor.YELLOW + "Compressing world...");
-                String randy = UUID.randomUUID().toString().substring(0, 3);
-                File zip = new File(wrapper.getName()  + "-" + randy + ".zip");
+        Scaffold.instance().async(() -> {
+            sender.sendMessage(ChatColor.YELLOW + "Compressing world...");
+            String randy = UUID.randomUUID().toString().substring(0, 3);
+            File zip = new File(wrapper.getName()  + "-" + randy + ".zip");
 
-                try {
-                    Zip.create(wrapper.getFolder(), zip);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    sender.sendMessage(ChatColor.RED + "Failed to compress.");
-                    return;
-                }
-
-                sender.sendMessage(ChatColor.YELLOW + "Uploading world...");
-                try {
-                    HttpResponse<JsonNode> json = Unirest.post("https://file.io").field("file", zip).asJson();
-                    JSONObject object = json.getBody().getObject();
-                    zip.delete();
-                    sender.sendMessage(ChatColor.GOLD + "Upload complete: " + object.getString("link"));
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    sender.sendMessage(ChatColor.RED + "Failed to upload, see the server logs.");
-                    return;
-                }
-
+            try {
+                Zip.create(wrapper.getFolder(), zip);
+            } catch (Exception e) {
+                e.printStackTrace();
+                sender.sendMessage(ChatColor.RED + "Failed to compress.");
+                return;
             }
+
+            sender.sendMessage(ChatColor.YELLOW + "Uploading world...");
+            try {
+                HttpResponse<JsonNode> json = Unirest.post("https://file.io").field("file", zip).asJson();
+                JSONObject object = json.getBody().getObject();
+                zip.delete();
+                sender.sendMessage(ChatColor.GOLD + "Upload complete: " + object.getString("link"));
+            } catch (Exception e) {
+                e.printStackTrace();
+                sender.sendMessage(ChatColor.RED + "Failed to upload, see the server logs.");
+                return;
+            }
+
         });
     }
 
@@ -233,37 +225,46 @@ public class ScaffoldCommands {
 
         Bukkit.broadcastMessage(ChatColor.YELLOW + "World import by " + sender.getName() + " beginning...");
 
-        Scaffold.instance().async(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    HttpResponse<InputStream> response = Unirest.get(link).header("content-type", "*/*").asBinary();
-                    File temp = new File(UUID.randomUUID().toString() + ".zip");
-                    Files.copy(response.getBody(), temp.toPath());
-                    Zip.extract(temp, wrapper.getFolder());
-                    FileUtils.forceDelete(temp);
-                    if (!wrapper.isCreated()) {
-                        sender.sendMessage(ChatColor.RED + "Invalid zipped world, no level.dat in root?");
-                        FileUtils.deleteDirectory(wrapper.getFolder());
-                        return;
-                    }
-                    Scaffold.instance().sync(new Runnable() {
-                        @Override
-                        public void run() {
-                            wrapper.load();
-                            sender.sendMessage(ChatColor.GOLD + "World imported and opened!");
-                        }
-                    });
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    sender.sendMessage(ChatColor.RED + e.getMessage());
-                    sender.sendMessage(ChatColor.RED + "Failed to import, see server logs.");
+        Scaffold.instance().async(() -> {
+            try {
+                HttpResponse<InputStream> response = Unirest.get(link).header("content-type", "*/*").asBinary();
+                File temp = new File(UUID.randomUUID().toString() + ".zip");
+                Files.copy(response.getBody(), temp.toPath());
+                Zip.extract(temp, wrapper.getFolder());
+                FileUtils.forceDelete(temp);
+                File levelDatParent = findLevelDat(wrapper.getFolder());
+                File[] listFiles = levelDatParent.listFiles();
+                if (!levelDatParent.equals(wrapper.getFolder()) && listFiles != null) for (File file : listFiles) Files.copy(file.toPath(), wrapper.getFolder().toPath());
+                if (!wrapper.isCreated()) {
+                    sender.sendMessage(ChatColor.RED + "Invalid zipped world, no level.dat found.");
+                    FileUtils.deleteDirectory(wrapper.getFolder());
+                    return;
                 }
+                Scaffold.instance().sync(() -> {
+                        wrapper.load();
+                        sender.sendMessage(ChatColor.GOLD + "World imported and opened!");
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+                sender.sendMessage(ChatColor.RED + e.getMessage());
+                sender.sendMessage(ChatColor.RED + "Failed to import, see server logs.");
             }
         });
     }
 
-    @Command(aliases = "worlds", desc = "Show all worlds.", min = 0, max = 1, flags = "l", help = "(search)")
+    private static File findLevelDat(File file) {
+        if (new File(file, "level.dat").exists()) return file;
+        File[] listFiles = file.listFiles();
+        if (listFiles != null) {
+            for (File  f : listFiles) {
+                File next = findLevelDat(file);
+                if (next != null) return next;
+            }
+        }
+        return null;
+    }
+
+    @Command(aliases = "worlds", desc = "Show all worlds.", max = 1, flags = "l", help = "(search)")
     public static void worlds(CommandContext cmd, CommandSender sender) {
         List<ScaffoldWorld> all = new ArrayList<>();
 
@@ -279,34 +280,18 @@ public class ScaffoldCommands {
             }
         }
 
-        Collections.sort(all, new Comparator<ScaffoldWorld>() {
-            @Override
-            public int compare(ScaffoldWorld o1, ScaffoldWorld o2) {
-                return o1.getName().compareTo(o2.getName());
-            }
-        });
+        all.sort(Comparator.comparing(ScaffoldWorld::getName));
 
         String prefix = "Worlds";
 
         if (cmd.hasFlag('o')) {
-            Iterator<ScaffoldWorld> iterator = all.iterator();
-            while (iterator.hasNext()) {
-                ScaffoldWorld wrapper = iterator.next();
-                if (!wrapper.isOpen())
-                    iterator.remove();
-            }
+            all.removeIf(wrapper -> !wrapper.isOpen());
             prefix = "Opened worlds";
         }
 
         if (cmd.argsLength() == 1) {
             String query = cmd.getString(0).toLowerCase();
-            Iterator<ScaffoldWorld> iterator = all.iterator();
-            while (iterator.hasNext()) {
-                ScaffoldWorld world = iterator.next();
-                if (!world.getName().toLowerCase().contains(query)) {
-                    iterator.remove();
-                }
-            }
+            all.removeIf(world -> !world.getName().toLowerCase().contains(query));
             prefix += " (matching \"" + cmd.getString(0) + "\")";
         }
 

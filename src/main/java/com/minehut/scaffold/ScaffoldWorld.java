@@ -106,18 +106,18 @@ public class ScaffoldWorld {
         return Bukkit.unloadWorld(world, true);
     }
 
-    private WorldCreator worldCreator(Optional<Config> config) {
+    private WorldCreator worldCreator(Optional<Config> optionalConfig) {
         WorldCreator creator = new WorldCreator(this.worldName);
         creator.generator(new NullChunkGenerator());
-        if (config.isPresent()) {
-            WorldType type = WorldType.valueOf(config.get().getAsString("type").toUpperCase());
-            Environment environment =  Environment.valueOf(config.get().getAsString("environment").toUpperCase());
-            long seed = config.get().getLong("seed");
+        optionalConfig.ifPresent(config -> {
+            WorldType type = WorldType.valueOf(config.getAsString("type").toUpperCase());
+            Environment environment =  Environment.valueOf(config.getAsString("environment").toUpperCase());
+            long seed = config.getLong("seed");
 
             creator.type(type);
             creator.environment(environment);
             creator.seed(seed);
-        }
+        });
         return creator;
     }
 

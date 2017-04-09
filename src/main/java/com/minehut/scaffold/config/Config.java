@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 public class Config {
-    protected static final Yaml yaml = new Yaml();
+    static final Yaml yaml = new Yaml();
 
     @Getter private final Map<String, Object> data;
 
