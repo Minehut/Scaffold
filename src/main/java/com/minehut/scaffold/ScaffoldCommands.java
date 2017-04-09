@@ -2,7 +2,6 @@ package com.minehut.scaffold;
 
 import com.google.common.base.Joiner;
 import com.mashape.unirest.http.HttpResponse;
-import com.mashape.unirest.http.JsonNode;
 import com.mashape.unirest.http.Unirest;
 import com.sk89q.minecraft.util.commands.Command;
 import com.sk89q.minecraft.util.commands.CommandContext;
@@ -14,12 +13,12 @@ import org.bukkit.World.Environment;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
+import java.nio.file.*;
+import static java.nio.file.StandardWatchEventKinds.*;
 import java.util.*;
 
 public class ScaffoldCommands {
@@ -278,18 +277,17 @@ public class ScaffoldCommands {
                 Zip.extract(temp, wrapper.getFolder());
                 FileUtils.forceDelete(temp);
                 File levelDatParent = findLevelDat(wrapper.getFolder());
-                File[] listFiles = levelDatParent.listFiles();
-                if (!levelDatParent.getPath().equals(wrapper.getFolder().getPath()) && listFiles != null)
-                    for (File file : listFiles) {
-                        System.out.println(file.getName());
-                        File to = new File(wrapper.getFolder(), file.getName());
-                        Files.copy(file.toPath(), to.toPath());
-                    }
+                System.out.println("Found level.dat in " + levelDatParent.getName());
+                if (!levelDatParent.getPath().equals(wrapper.getFolder().getPath())) {
+                    FileUtils.copyDirectory(levelDatParent, wrapper.getFolder());
+                    FileUtils.deleteDirectory(levelDatParent);
+                }
                 if (!wrapper.isCreated()) {
                     sender.sendMessage(ChatColor.RED + "Invalid zipped world, no level.dat found.");
                     FileUtils.deleteDirectory(wrapper.getFolder());
                     return;
                 }
+
                 Scaffold.instance().sync(() -> {
                         wrapper.load();
                         sender.sendMessage(ChatColor.GOLD + "World imported and opened!");
